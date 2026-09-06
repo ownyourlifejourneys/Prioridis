@@ -1,0 +1,9 @@
+node_modules/
+firebase-debug.log
+*.log
+.DS_Store
+
+# Gebouwd testbestand: ontstaat via scripts/build-test-page.py, hoort niet
+# in de geschiedenis. site/index.html blijft wel getrackt: dat is het
+# daadwerkelijke bestand dat naar Netlify gaat.
+test/index.html
