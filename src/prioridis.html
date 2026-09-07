@@ -1513,6 +1513,16 @@
       if(!micHadError){ showMicStatus(null); }
     };
 
+    function startRecognition(){
+      try{
+        recognition.start();
+        isListening = true;
+        micBtn.classList.add("recording");
+      } catch(e){
+        showMicStatus("Spraakherkenning kon niet starten. Typ je taak, of probeer opnieuw.");
+      }
+    }
+
     micBtn.addEventListener("click", function(){
       if(isListening){
         recognition.stop();
@@ -1521,12 +1531,27 @@
       baseTextBeforeListening = taskInput.value;
       micHadError = false;
       showMicStatus("Spreek je taak in...");
-      try{
-        recognition.start();
-        isListening = true;
-        micBtn.classList.add("recording");
-      } catch(e){
-        showMicStatus("Spraakherkenning kon niet starten. Typ je taak, of probeer opnieuw.");
+
+      // Op een als-app-geïnstalleerde versie (na "Zet op beginscherm") vraagt
+      // de spraakherkenning op iOS soms zelf geen microfoontoestemming aan,
+      // een bekende beperking van Safari. Microfoontoegang apart aanvragen
+      // werkt daar wel betrouwbaar en "warmt" de toestemming voor: hierna kan
+      // de spraakherkenning gewoon starten. We gebruiken de stream verder niet
+      // en stoppen hem meteen weer.
+      if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+        navigator.mediaDevices.getUserMedia({ audio:true }).then(function(stream){
+          stream.getTracks().forEach(function(track){ track.stop(); });
+          startRecognition();
+        }).catch(function(err){
+          micHadError = true;
+          if(err && (err.name === "NotAllowedError" || err.name === "PermissionDeniedError")){
+            showMicStatus("Geen toestemming voor de microfoon. Zet dit aan bij de instellingen van je browser.");
+          } else {
+            showMicStatus("Spraakherkenning kon niet starten. Typ je taak, of probeer opnieuw.");
+          }
+        });
+      } else {
+        startRecognition();
       }
     });
   }
