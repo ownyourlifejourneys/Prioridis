@@ -1007,6 +1007,40 @@
   // die je offline maakt worden vastgehouden en later automatisch verstuurd.
   db.enablePersistence({ synchronizeTabs:true }).catch(function(){ /* meerdere tabbladen open, of browser ondersteunt dit niet: geen kritieke functie */ });
 
+  // Basale foutregistratie: onverwachte fouten worden niet meer alleen stil
+  // weggeslikt, maar ook weggeschreven naar een Firestore-collectie, zodat
+  // ze achteraf te bekijken zijn (Firebase Console > Firestore Database >
+  // errorLogs). Dit is bewust eenvoudig gehouden: geen dashboard, geen
+  // externe dienst, alleen een vindbaar spoor van wat er misging, bij wie,
+  // en waar in de app. Loggen zelf mag nooit de app breken of de gebruiker
+  // hinderen, vandaar de try/catch eromheen en de stille .catch() erna.
+  function logError(context, err){
+    try{
+      console.error("[Prioridis]", context, err);
+      var message = err && err.message ? err.message : String(err);
+      var payload = {
+        context: String(context).slice(0, 200),
+        message: String(message).slice(0, 500),
+        code: (err && err.code) ? String(err.code).slice(0, 100) : null,
+        stack: (err && err.stack) ? String(err.stack).slice(0, 1000) : null,
+        uid: currentUid || null,
+        url: location.href,
+        userAgent: navigator.userAgent,
+        createdAt: Date.now()
+      };
+      db.collection("errorLogs").add(payload).catch(function(){ /* loggen mag zelf ook falen, geen actie nodig */ });
+    } catch(e){
+      // loggen mag nooit de app zelf laten crashen
+    }
+  }
+
+  window.addEventListener("error", function(e){
+    logError("onverwachte fout", e.error || { message: e.message });
+  });
+  window.addEventListener("unhandledrejection", function(e){
+    logError("onverwerkte promise-fout", e.reason);
+  });
+
   var PALETTE = [
     "--c-zichzelf", "--c-gezin", "--c-vrienden",
     "--c-club", "--c-school", "--c-loopbaan",
@@ -1097,7 +1131,7 @@
   // verstuurd zodra er weer verbinding is.
   function queueSave(fields){
     if(!currentUid) return;
-    userDoc().set(fields, { merge:true }).catch(function(){ /* wordt bij weer online komen opnieuw geprobeerd door Firestore zelf */ });
+    userDoc().set(fields, { merge:true }).catch(function(err){ logError("instellingen opslaan", err); /* wordt bij weer online komen ook opnieuw geprobeerd door Firestore zelf */ });
   }
 
   function findCat(id){
@@ -1158,7 +1192,7 @@
       affected.forEach(function(t){
         batch.update(tasksCol().doc(t.id), { categoryId: "toewijzen" });
       });
-      batch.commit().catch(function(){});
+      batch.commit().catch(function(err){ logError("taken verhuizen bij verwijderen categorie", err); });
     }
     categories = categories.filter(function(c){ return c.id !== id; });
     order = order.filter(function(oid){ return oid !== id; });
@@ -1396,7 +1430,7 @@
       daily: dailyInput.checked,
       dailyDoneDate: null
     };
-    tasksCol().doc(task.id).set(task).catch(function(){});
+    tasksCol().doc(task.id).set(task).catch(function(err){ logError("taak toevoegen", err); });
     taskInput.value = "";
     dueInput.value = "";
     hoursInput.value = "";
@@ -1549,11 +1583,11 @@
     } else if(task.daily){
       patch.dailyDoneDate = null;
     }
-    tasksCol().doc(task.id).update(patch).catch(function(){});
+    tasksCol().doc(task.id).update(patch).catch(function(err){ logError("taak afvinken", err); });
   }
 
   function removeTask(id){
-    tasksCol().doc(id).delete().catch(function(){});
+    tasksCol().doc(id).delete().catch(function(err){ logError("taak verwijderen", err); });
   }
 
   function showDeleteConfirm(li, t){
@@ -1652,7 +1686,7 @@
         tag.appendChild(opt);
       });
       tag.addEventListener("change", function(){
-        tasksCol().doc(t.id).update({ categoryId: tag.value }).catch(function(){});
+        tasksCol().doc(t.id).update({ categoryId: tag.value }).catch(function(err){ logError("categorie van taak wijzigen", err); });
       });
       meta.appendChild(tag);
 
@@ -1662,7 +1696,7 @@
       dueEl.value = t.dueDate || "";
       dueEl.setAttribute("aria-label", "Einddatum van: " + t.text);
       dueEl.addEventListener("change", function(){
-        tasksCol().doc(t.id).update({ dueDate: dueEl.value || null }).catch(function(){});
+        tasksCol().doc(t.id).update({ dueDate: dueEl.value || null }).catch(function(err){ logError("einddatum van taak wijzigen", err); });
       });
       meta.appendChild(dueEl);
 
@@ -1736,7 +1770,7 @@
     if(!examples.length) return;
     var batch = db.batch();
     examples.forEach(function(t){ batch.delete(tasksCol().doc(t.id)); });
-    batch.commit().catch(function(){});
+    batch.commit().catch(function(err){ logError("voorbeeldtaken opruimen", err); });
   });
 
   // ---- doelen behaald (donut) ----
@@ -1995,6 +2029,7 @@
       request = auth.signInWithEmailAndPassword(email, password);
     }
     request.catch(function(err){
+      logError(authMode === "register" ? "registreren" : "inloggen", err);
       pendingRegisterName = null;
       clearStatus();
       loginBtn.disabled = false;
@@ -2022,6 +2057,7 @@
       showStatus("E-mail verstuurd naar " + email + ". Volg de link daarin om een nieuw wachtwoord in te stellen.");
       forgotPassBtn.disabled = false;
     }).catch(function(err){
+      logError("wachtwoord vergeten", err);
       clearStatus();
       forgotPassBtn.disabled = false;
       showError(translateAuthError(err));
@@ -2072,7 +2108,7 @@
     toReset.forEach(function(t){
       batch.update(tasksCol().doc(t.id), { done:false, dailyDoneDate:null });
     });
-    batch.commit().catch(function(){});
+    batch.commit().catch(function(err){ logError("dagelijkse taken resetten", err); });
   }
 
   // Houdt de taken van de ingelogde gebruiker live gesynchroniseerd: een
@@ -2095,7 +2131,8 @@
       } else {
         renderAll();
       }
-    }, function(){
+    }, function(err){
+      logError("taken-listener", err);
       clearStatus();
       loginBtn.disabled = false;
       showError("Kon je taken niet laden. Controleer je internetverbinding en probeer opnieuw.");
@@ -2112,14 +2149,15 @@
         var fallbackName = pendingRegisterName || (user.email ? user.email.split("@")[0] : "Jij");
         var initial = defaultUserData(fallbackName);
         hydrate(initial);
-        userDoc().set(initial).catch(function(){});
+        userDoc().set(initial).catch(function(err){ logError("nieuw account aanmaken", err); });
       }
       pendingRegisterName = null;
       applyTheme(currentTheme);
       applyLayout(currentLayout);
-      var seeded = isNew ? seedExampleTasks().catch(function(){}) : Promise.resolve();
+      var seeded = isNew ? seedExampleTasks().catch(function(err){ logError("voorbeeldtaken zaaien", err); }) : Promise.resolve();
       seeded.then(attachTasksListener);
-    }).catch(function(){
+    }).catch(function(err){
+      logError("gebruikersgegevens laden", err);
       clearStatus();
       loginBtn.disabled = false;
       showError("Kon je gegevens niet laden. Controleer je internetverbinding en probeer opnieuw.");

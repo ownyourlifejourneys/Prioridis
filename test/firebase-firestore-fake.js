@@ -55,11 +55,19 @@
     };
   }
 
+  var autoIdCounter = 0;
+
   function makeCollectionRef(p){
     var listUrl = "/fsfake-collection/" + encodePath(p);
     return {
       path: p,
       doc: function(id){ return makeDocRef(p + "/" + id); },
+      add: function(data){
+        autoIdCounter++;
+        var id = "auto" + Date.now() + "_" + autoIdCounter;
+        var ref = makeDocRef(p + "/" + id);
+        return ref.set(data).then(function(){ return ref; });
+      },
       get: function(){
         return fetch(listUrl).then(function(r){ return r.json(); }).then(function(json){
           return {
