@@ -48,3 +48,18 @@ Firestore) en wordt gehost via Netlify.
    git-repository is gekoppeld, commit en push).
 5. Als de wijziging Firestore-structuur raakt: werk ook
    `site/firestore.rules` bij en zet de nieuwe regels in de Firebase Console.
+
+## Werkwijze bij een nieuw ontwerp of nieuwe stijl
+
+Voor een nieuwe visuele richting (een nieuwe laag zoals eerder GenZ of GenX,
+een andere kleurstelling, een nieuw scherm) geldt een tussenstap vóór de
+volledige bouw: eerst een korte beschrijving of een schermafbeelding-schets
+ter goedkeuring, pas daarna de echte implementatie in `src/prioridis.html`.
+
+Aanleiding: de GenX-huisstijl werd destijds volledig gebouwd, getest en
+uitgeleverd, en binnen één bericht weer teruggedraaid omdat hij achteraf te
+weinig onderscheidend bleek. Die tussenstap had dat werk voorkomen.
+
+Dit geldt niet voor kleine, functionele wijzigingen (een knop, een bugfix,
+een nieuw veld) — alleen voor iets dat de app anders laat aanvoelen of
+eruitzien dan wat er al staat.
