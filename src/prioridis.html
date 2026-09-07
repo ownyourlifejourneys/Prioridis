@@ -756,6 +756,18 @@
   .done-panel summary .bell{ color:var(--accent); flex-shrink:0; }
   .done-panel[open] summary .chevron{ transform:rotate(180deg); }
   .done-panel .chevron{ margin-left:auto; color:var(--ink-faint); transition:transform .18s ease;}
+  .done-actions{ display:flex; justify-content:flex-end; padding:0 16px 8px; }
+  .done-actions[hidden]{ display:none; }
+  .done-clear-btn{
+    background:none;
+    border:none;
+    color:var(--ink-faint);
+    cursor:pointer;
+    padding:4px;
+    display:flex;
+    align-items:center;
+  }
+  .done-clear-btn:hover{ color:var(--danger); }
   .done-list{ list-style:none; margin:0; padding:0 16px 12px; }
   .done-item{
     display:flex; align-items:center; gap:10px;
@@ -968,6 +980,7 @@
         <span id="doneCount">Voltooid (0)</span>
         <svg class="chevron" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </summary>
+      <div class="done-actions" id="doneActionsRow" hidden></div>
       <ul class="done-list" id="doneList"></ul>
     </details>
   </section>
@@ -1555,9 +1568,14 @@
   var clearExamplesBtn = document.getElementById("clearExamples");
   var doneList = document.getElementById("doneList");
   var doneCount = document.getElementById("doneCount");
+  var doneActionsRow = document.getElementById("doneActionsRow");
 
   function checkIcon(){
     return '<svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3 3 7-7" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+
+  function trashIcon(){
+    return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V4h6v3M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   }
 
   function dueStatus(dueDate, done){
@@ -1748,6 +1766,7 @@
 
     doneCount.textContent = "Voltooid (" + completed.length + ")";
     doneList.innerHTML = "";
+    renderDoneActions(completed.length);
     completed.forEach(function(t){
       var li = document.createElement("li");
       li.className = "done-item";
@@ -1763,6 +1782,80 @@
       li.appendChild(undo);
       doneList.appendChild(li);
     });
+  }
+
+  // Prullenbak-knop boven de Voltooid-lijst: maakt in één keer alle
+  // voltooide taken leeg. Omdat de "Doelen behaald"-grafiek hieronder
+  // rechtstreeks uit de huidige voltooide taken wordt berekend, gaat die
+  // vanzelf mee terug naar nul, precies zoals bij een taak die je losstaand
+  // afvinkt of terugzet. Zelfde bevestigingspatroon als bij een losse taak
+  // verwijderen: eerst een expliciete vraag, geen directe verwijdering.
+  function renderDoneActions(count){
+    doneActionsRow.innerHTML = "";
+    if(!count){
+      doneActionsRow.hidden = true;
+      return;
+    }
+    doneActionsRow.hidden = false;
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "done-clear-btn";
+    btn.setAttribute("aria-label", "Alle voltooide taken verwijderen");
+    btn.title = "Voltooid leegmaken";
+    btn.innerHTML = trashIcon();
+    btn.addEventListener("click", function(){ showClearDoneConfirm(count); });
+    doneActionsRow.appendChild(btn);
+  }
+
+  function showClearDoneConfirm(count){
+    doneActionsRow.innerHTML = "";
+
+    var row = document.createElement("div");
+    row.className = "confirm-row";
+
+    var msg = document.createElement("span");
+    msg.className = "confirm-msg";
+    msg.textContent = count === 1 ? "De voltooide taak verwijderen?" : "Alle " + count + " voltooide taken verwijderen?";
+
+    var actions = document.createElement("div");
+    actions.className = "confirm-actions";
+
+    var no = document.createElement("button");
+    no.type = "button";
+    no.className = "confirm-no";
+    no.textContent = "Annuleren";
+
+    var yes = document.createElement("button");
+    yes.type = "button";
+    yes.className = "confirm-yes";
+    yes.textContent = "Verwijderen";
+
+    actions.appendChild(no);
+    actions.appendChild(yes);
+    row.appendChild(msg);
+    row.appendChild(actions);
+    doneActionsRow.appendChild(row);
+
+    var timer = setTimeout(cancel, 6000);
+
+    function cancel(){
+      clearTimeout(timer);
+      renderDone();
+    }
+
+    yes.addEventListener("click", function(){
+      clearTimeout(timer);
+      clearCompletedTasks();
+    });
+    no.addEventListener("click", cancel);
+  }
+
+  function clearCompletedTasks(){
+    var completed = tasks.filter(function(t){ return t.done; });
+    if(!completed.length) return;
+    var batch = db.batch();
+    completed.forEach(function(t){ batch.delete(tasksCol().doc(t.id)); });
+    batch.commit().catch(function(err){ logError("voltooide taken in bulk verwijderen", err); });
   }
 
   clearExamplesBtn.addEventListener("click", function(){
