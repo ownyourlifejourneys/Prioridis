@@ -1,0 +1,11 @@
+{
+  "name": "prioridis-tests",
+  "private": true,
+  "description": "Lokale testopstelling voor Prioridis: een nagemaakte Firestore-server en Playwright-testscripts die de app end-to-end doorlopen, zonder de app op internet te hoeven zetten.",
+  "scripts": {
+    "test": "for f in test-*.js; do echo \"=== $f ===\"; node \"$f\" || exit 1; done"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.0"
+  }
+}
