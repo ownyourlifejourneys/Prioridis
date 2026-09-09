@@ -1,83 +1,77 @@
-# Lokale testopstelling
+# Prioridis
 
-Deze map draait Prioridis lokaal, zonder een echte Firestore-verbinding, zodat
-je wijzigingen kunt testen zonder de live data te raken.
+Prioridis is een prioriteiten-gebaseerde to-do-app in het Nederlands, gebouwd
+voor Own Your Life Journeys. De app draait op Firebase (Authentication +
+Firestore) en wordt gehost via Netlify.
 
-Wat hier gebeurt:
-- Een echte Firebase Auth-emulator regelt inloggen/registreren/wachtwoord
-  vergeten.
-- Een nagemaakte Firestore-server (`server.js`, met bijpassende
-  clientshim `firebase-firestore-fake.js`) speelt voor taken en instellingen.
-  Dit is nodig omdat de echte Firestore-emulator in sommige omgevingen niet
-  gedownload kan worden.
+## Kernfunctie
 
-## Eenmalig
+Prioridis toont elke dag welke taak het meest bijdraagt aan de levensgebieden
+die jij belangrijk vindt, niet aan wat het eerst binnenkwam of de
+dichtstbijzijnde deadline.
 
-Vanuit deze map (`test/`):
+Elke nieuwe wens (functie, scherm, instelling) wordt hieraan getoetst voordat
+hij gebouwd wordt: draagt hij bij aan die dagelijkse, prioriteit-gestuurde
+volgorde, of is het een ander soort app in wording (projectplanning,
+teamwerk, agendabeheer)? Bij twijfel: eerst bespreken, dan pas bouwen (zie
+ook de werkwijze hieronder bij een nieuw ontwerp).
 
-```
-npm install -g firebase-tools     # de Auth-emulator
-npm install                       # Playwright, via package.json
-npx playwright install chromium   # de browser die Playwright aanstuurt
-```
+## Mapstructuur
 
-Node.js (inclusief npm) moet al op je computer staan. Test dat met
-`node --version` in Terminal; staat er niets, installeer Node.js eerst via
-nodejs.org.
+- `src/prioridis.html`
+  De bewerkbare bron. Bevat de `<style>` en de volledige app-inhoud
+  (inlogscherm, appscherm, script). Dit bestand heeft geen eigen `<head>` met
+  echte bestandslinks: dat komt pas bij het bouwen.
 
-## Bij elke testronde
+- `site/`
+  De daadwerkelijk gehoste site.
+  - `site/index.html` is een gebouwd bestand: `scripts/build-site.py` zet
+    `site/head-template.html` + de inhoud van `src/prioridis.html` +
+    `site/tail-template.html` aan elkaar. Bewerk `site/index.html` dus nooit
+    rechtstreeks, dat wordt bij de volgende build overschreven.
+  - `site/head-template.html` en `site/tail-template.html` bevatten wat uniek
+    is voor de gehoste site: paginatitel, meta-tags, manifest-link, de
+    Firebase-scripts van gstatic.com, en de service-worker-registratie.
+  - `site/manifest.json`, `site/sw.js`, `site/icon-*.png`: overige
+    site-bestanden.
+  - `site/firestore.rules`: de Firestore-beveiligingsregels. Bij elke nieuwe
+    subcollectie (zoals `tasks`) moet hier een eigen `match`-blok bij; regels
+    erven niet automatisch over naar subcollecties.
 
-1. Bouw de testpagina opnieuw op na een wijziging in `src/prioridis.html`:
-   ```
-   cd ..
-   python3 scripts/build-test-page.py
-   cd test
-   ```
-2. Start de Auth-emulator (in een apart terminalvenster of op de achtergrond):
-   ```
-   firebase emulators:start --only auth --project demo-priodis
-   ```
-   Wacht op de regel "All emulators ready!" voordat je verdergaat.
-3. Start de nagemaakte Firestore-server:
-   ```
-   node server.js
-   ```
-4. Draai de hele testreeks in één keer:
-   ```
-   npm test
-   ```
-   Of één losse test, bijvoorbeeld tijdens het uitzoeken van een probleem:
-   ```
-   node test-account-isolatie.js
-   ```
-   De losse scripts: `test-account-isolatie.js`, `test-dagelijkse-taken.js`,
-   `test-genz-layout.js`, `test-wachtwoord-vergeten.js`,
-   `test-verwijder-bevestiging.js`, `test-race-condition.js`,
-   `test-foutregistratie.js`, `test-voltooid-leegmaken.js`.
+- `scripts/`
+  - `build-site.py`: bouwt `site/index.html` uit `src/prioridis.html`. Draai
+    dit na elke wijziging in `src/prioridis.html` en zet de nieuwe
+    `site/index.html` (samen met de rest van `site/`) op Netlify.
+  - `build-test-page.py`: bouwt `test/index.html` uit `src/prioridis.html`,
+    voor de lokale testopstelling.
 
-Elk script opent de app op `http://127.0.0.1:8090/`, doorloopt een scenario,
-en drukt de waargenomen resultaten af als JSON. Er is geen ingebouwde
-pass/fail-vergelijking: lees de uitkomst en vergelijk die met wat je
-verwacht.
+- `test/`
+  Lokale testopstelling: een Firebase Auth-emulator (echt) plus een
+  nagemaakte Firestore-server, en Playwright-testscripts die de app
+  end-to-end doorlopen. Zie `test/README.md`.
 
-## Bekende, onschuldige meldingen
+## Werkwijze bij een wijziging
 
-- Een `pkill`-commando om de nagemaakte server te stoppen geeft vaak exit
-  code 144 zonder verdere melding. Dat is normaal; controleer daarna of het
-  proces echt weg is voordat je verdergaat.
-- De Auth-emulator kan tussentijds stoppen. Controleer met
-  `curl http://127.0.0.1:9099/`: krijg je geen antwoord, start de emulator
-  opnieuw en wacht op "All emulators ready!" (dit kan een paar tellen duren).
+1. Bewerk `src/prioridis.html`.
+2. Draai `python3 scripts/build-test-page.py` en test lokaal (zie
+   `test/README.md`).
+3. Draai `python3 scripts/build-site.py` om `site/index.html` bij te werken.
+4. Zet de inhoud van `site/` op Netlify (of, als Netlify aan deze
+   git-repository is gekoppeld, commit en push).
+5. Als de wijziging Firestore-structuur raakt: werk ook
+   `site/firestore.rules` bij en zet de nieuwe regels in de Firebase Console.
 
-## Bestanden in deze map
+## Werkwijze bij een nieuw ontwerp of nieuwe stijl
 
-- `server.js`, `firebase-firestore-fake.js`: de nagemaakte Firestore-laag.
-- `firebase-app-compat.js`, `firebase-auth-compat.js`: meegeleverde
-  Firebase-scripts voor de emulator-verbinding.
-- `head-template.html`: de kop die `build-test-page.py` gebruikt.
-- `index.html`: gebouwd bestand, nooit rechtstreeks bewerken.
-- `firestore.rules` verwijst voor de zekerheid naar `../site/firestore.rules`
-  (zie `firebase.json`), al gebruikt de nagemaakte server geen echte regels.
-- `test-*.js`: de Playwright-testscripts, één per functionaliteit.
-- `package.json`: declareert Playwright als afhankelijkheid, zodat `npm
-  install` in deze map alles ophaalt wat de testscripts nodig hebben.
+Voor een nieuwe visuele richting (een nieuwe laag zoals eerder GenZ of GenX,
+een andere kleurstelling, een nieuw scherm) geldt een tussenstap vóór de
+volledige bouw: eerst een korte beschrijving of een schermafbeelding-schets
+ter goedkeuring, pas daarna de echte implementatie in `src/prioridis.html`.
+
+Aanleiding: de GenX-huisstijl werd destijds volledig gebouwd, getest en
+uitgeleverd, en binnen één bericht weer teruggedraaid omdat hij achteraf te
+weinig onderscheidend bleek. Die tussenstap had dat werk voorkomen.
+
+Dit geldt niet voor kleine, functionele wijzigingen (een knop, een bugfix,
+een nieuw veld) — alleen voor iets dat de app anders laat aanvoelen of
+eruitzien dan wat er al staat.

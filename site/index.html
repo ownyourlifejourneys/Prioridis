@@ -1567,20 +1567,20 @@
   // (zie hidden-attribuut in de HTML), typen werkt gewoon.
 
   // ---- sound ----
+  // De browser kan de AudioContext tussentijds pauzeren (scherm op slot,
+  // tab gewisseld, even niets van de pagina gehoord) en herstelt dat niet
+  // vanzelf. We wachten resume() daarom echt af voordat de tonen worden
+  // ingepland; anders klinkt er soms niets, zonder foutmelding. Een
+  // dichtgedraaide stille standaard op de telefoon blijft vanzelfsprekend
+  // stil, dat is geen fout en wordt dus ook niet gelogd.
   var audioCtx = null;
-  function playBell(){
+  function ringBell(ctx){
     try{
-      if(!audioCtx){
-        var Ctx = window.AudioContext || window.webkitAudioContext;
-        if(!Ctx) return;
-        audioCtx = new Ctx();
-      }
-      if(audioCtx.state === "suspended"){ audioCtx.resume(); }
-      var now = audioCtx.currentTime;
+      var now = ctx.currentTime;
       var freqs = [1318.5, 1975.5];
       freqs.forEach(function(freq, i){
-        var osc = audioCtx.createOscillator();
-        var gain = audioCtx.createGain();
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
         osc.type = "sine";
         osc.frequency.value = freq;
         var start = now + i * 0.03;
@@ -1588,11 +1588,28 @@
         gain.gain.linearRampToValueAtTime(i === 0 ? 0.12 : 0.05, start + 0.008);
         gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.9);
         osc.connect(gain);
-        gain.connect(audioCtx.destination);
+        gain.connect(ctx.destination);
         osc.start(start);
         osc.stop(start + 0.95);
       });
-    } catch(e){ /* audio not available, fail silently */ }
+    } catch(e){ logError("geluid bij afvinken", e); }
+  }
+  function playBell(){
+    try{
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if(!Ctx) return;
+      if(!audioCtx || audioCtx.state === "closed"){
+        audioCtx = new Ctx();
+      }
+      var ctx = audioCtx;
+      if(ctx.state === "suspended"){
+        ctx.resume().then(function(){ ringBell(ctx); }).catch(function(err){
+          logError("geluid bij afvinken (audiocontext hervatten)", err);
+        });
+      } else {
+        ringBell(ctx);
+      }
+    } catch(e){ logError("geluid bij afvinken", e); }
   }
 
   // ---- task list rendering ----
