@@ -1603,6 +1603,31 @@
       }
     } catch(e){ logError("geluid bij afvinken", e); }
   }
+  // playBell() wacht resume() zelf netjes af (zie hierboven), maar als dat
+  // precies op het moment van afvinken moet gebeuren, voelt de vertraging
+  // merkbaar: de taak verdwijnt direct (Firestore werkt de lijst lokaal al
+  // bij vóór er iets over het netwerk is geweest), het geluid zou dan pas
+  // daarna volgen. Daarom hervatten we de audioverbinding al bij de eerste
+  // de beste tik ergens in de app (en opnieuw zodra het scherm weer actief
+  // wordt na bijvoorbeeld schermvergrendeling), zodat hij bij het echte
+  // afvinken meestal al klaarstaat en het geluid gelijk opgaat met de taak.
+  function unlockAudio(){
+    try{
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if(!Ctx) return;
+      if(!audioCtx || audioCtx.state === "closed"){
+        audioCtx = new Ctx();
+      }
+      if(audioCtx.state === "suspended"){
+        audioCtx.resume().catch(function(){ /* volgende tik probeert opnieuw */ });
+      }
+    } catch(e){ /* geen audio beschikbaar, niets aan te doen */ }
+  }
+  document.addEventListener("pointerdown", unlockAudio, { passive:true });
+  document.addEventListener("keydown", unlockAudio);
+  document.addEventListener("visibilitychange", function(){
+    if(document.visibilityState === "visible") unlockAudio();
+  });
 
   // ---- task list rendering ----
   var taskListEl = document.getElementById("taskList");
