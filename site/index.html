@@ -1434,6 +1434,18 @@
   function addTask(){
     var text = taskInput.value.trim();
     if(!text) { taskInput.focus(); return; }
+    // Staat de microfoon nog aan (vergeten uit te zetten, of nog aan het
+    // afronden), stop hem dan meteen mee met het toevoegen. Anders komt een
+    // laatste stukje herkende spraak alsnog in het (net geleegde) veld
+    // terecht en lijkt het of de tekst na het toevoegen "blijft staan".
+    // isListening wordt hier al op false gezet, niet pas in onend: zo
+    // negeert de onresult-handler een eventueel nog onderweg zijnd
+    // resultaat van vóór recognition.stop() daadwerkelijk is verwerkt.
+    if(recognition && isListening){
+      isListening = false;
+      micBtn.classList.remove("recording");
+      recognition.stop();
+    }
     var hoursVal = parseFloat(hoursInput.value);
     if(!isNaN(hoursVal)){
       if(hoursVal < 0) hoursVal = 0;
@@ -1490,6 +1502,10 @@
     recognition.interimResults = true;
 
     recognition.onresult = function(event){
+      // Kan nog eenmaal afvuren nadat addTask() de microfoon al heeft
+      // gestopt (recognition.stop() rondt niet synchroon af). Dan niets meer
+      // in het veld zetten, anders duikt de zojuist toegevoegde tekst weer op.
+      if(!isListening) return;
       var finalText = "";
       var interimText = "";
       for(var i = 0; i < event.results.length; i++){
@@ -1526,6 +1542,7 @@
         recognition.start();
         isListening = true;
         micBtn.classList.add("recording");
+        showMicStatus("Tik nogmaals om te stoppen");
       } catch(e){
         showMicStatus("Spraakherkenning kon niet starten. Typ je taak, of probeer opnieuw.");
       }
