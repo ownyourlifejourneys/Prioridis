@@ -1,65 +1,51 @@
-# Firebase Hosting: eenmalige koppeling
+# Firebase Hosting
 
-Prioridis wordt niet meer via Netlify gehost, maar via Firebase Hosting
-(hetzelfde Firebase-project dat al voor inloggen en Firestore wordt
-gebruikt: `priodis`). Dit bestand beschrijft de eenmalige koppeling in
-Terminal. Daarna volstaat bij elke update `firebase deploy --only hosting`
-(zie `README.md`, werkwijze bij een wijziging, stap 4).
+Prioridis wordt niet meer via Netlify gehost, maar via Firebase Hosting, op
+een eigen site binnen hetzelfde Firebase-project dat al voor inloggen en
+Firestore wordt gebruikt (project `priodis`, hosting-site `prioridis`). Dit
+bestand beschrijft de koppeling en de vaste link.
 
-## Eenmalige koppeling
+## Live link
 
-1. Open Terminal en ga naar je lokale kopie van de repository:
+**https://prioridis.web.app** — dit is de link die testers en toekomstige
+gebruikers gebruiken. Niet `priodis.web.app` (dat is de standaardsite van
+het Firebase-project zelf, met de verkeerde naam, en wordt niet meer
+bijgewerkt).
 
-   ```
-   cd ~/Documents/Prioridis
-   ```
+## Eenmalige koppeling (al gedaan)
 
-   (of het pad waar je de repo lokaal hebt staan)
+Ter referentie, dit is eenmalig ingesteld en hoeft niet herhaald te worden:
 
-2. Zorg dat `firebase.json` en `.firebaserc` in de hoofdmap van de repo
-   staan (ze horen bij `prioridis-repo-update-14.zip`, sleep ze net als de
-   andere bestanden in de juiste map).
+1. `firebase login` — inloggen met het Google-account bij project `priodis`.
+2. `firebase hosting:sites:create prioridis` — een extra hosting-site
+   aangemaakt binnen het project, met de juiste naam.
+3. `firebase target:apply hosting prioridis prioridis` — de naam
+   `prioridis` in `firebase.json`/`.firebaserc` gekoppeld aan die site.
+4. `firebase.json` verwijst met `"target": "prioridis"` naar die koppeling.
 
-3. Log eenmalig in bij Firebase vanuit Terminal:
+## Vanaf nu: bij elke update
 
-   ```
-   firebase login
-   ```
-
-   Er opent een browservenster. Log in met het Google-account dat bij het
-   Firebase-project `priodis` hoort en geef toestemming.
-
-4. Doe de eerste deploy:
-
-   ```
-   firebase deploy --only hosting
-   ```
-
-   Firebase toont aan het einde een "Hosting URL", bijvoorbeeld
-   `https://priodis.web.app` of `https://priodis.firebaseapp.com`. Open die
-   link en controleer dat Prioridis het doet.
-
-## Vanaf nu
-
-Bij elke inhoudelijke wijziging (na `python3 scripts/build-site.py`):
+Na `python3 scripts/build-site.py`:
 
 ```
-firebase deploy --only hosting
+firebase deploy --only hosting:prioridis
 ```
 
 Dit vervangt het slepen van een zip-bestand naar het Netlify Deploys-
-tabblad volledig.
+tabblad volledig. Firebase toont aan het einde de Hosting URL
+(`https://prioridis.web.app`) ter bevestiging.
 
 ## Eigen domein (optioneel)
 
 Wil je Prioridis op een eigen domeinnaam laten draaien in plaats van
-`priodis.web.app`? Dat kan gratis bij Firebase Hosting. Ga naar de Firebase
-Console, open het project `priodis`, ga naar Hosting, en kies "Aangepast
-domein toevoegen". Firebase geeft dan DNS-instellingen die je bij je
-domeinregistrar invult.
+`prioridis.web.app`? Dat kan gratis bij Firebase Hosting. Ga naar de
+Firebase Console, open het project `priodis`, ga naar Hosting, kies de site
+`prioridis`, en kies "Aangepast domein toevoegen". Firebase geeft dan
+DNS-instellingen die je bij je domeinregistrar invult.
 
 ## Netlify opzeggen
 
-Zodra de eerste Firebase-deploy bevestigd werkt, kan de Netlify-site
-gepauzeerd of verwijderd worden. Dat voorkomt dat je later per ongeluk
-weer met verouderde Netlify-credits te maken krijgt.
+Zodra `https://prioridis.web.app` bevestigd werkt (en testers zijn
+overgestapt), kan de Netlify-site gepauzeerd of verwijderd worden. Dat
+voorkomt dat je later per ongeluk weer met verouderde Netlify-credits te
+maken krijgt.

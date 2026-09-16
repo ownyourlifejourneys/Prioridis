@@ -46,7 +46,7 @@ ook de werkwijze hieronder bij een nieuw ontwerp).
 - `scripts/`
   - `build-site.py`: bouwt `site/index.html` uit `src/prioridis.html`. Draai
     dit na elke wijziging in `src/prioridis.html`, en zet de nieuwe
-    `site/index.html` daarna live met `firebase deploy --only hosting`.
+    `site/index.html` daarna live met `firebase deploy --only hosting:prioridis`.
   - `build-test-page.py`: bouwt `test/index.html` uit `src/prioridis.html`,
     voor de lokale testopstelling.
 
@@ -61,9 +61,9 @@ ook de werkwijze hieronder bij een nieuw ontwerp).
 2. Draai `python3 scripts/build-test-page.py` en test lokaal (zie
    `test/README.md`).
 3. Draai `python3 scripts/build-site.py` om `site/index.html` bij te werken.
-4. Zet de site live met `firebase deploy --only hosting` (eenmalig eerst
-   `firebase login`, zie `HOSTING.md`). Commit en push de wijziging ook naar
-   git, los van de deploy.
+4. Zet de site live met `firebase deploy --only hosting:prioridis` (zie
+   `HOSTING.md` voor de live link en achtergrond). Commit en push de
+   wijziging ook naar git, los van de deploy.
 5. Als de wijziging Firestore-structuur raakt: werk ook
    `site/firestore.rules` bij en zet de nieuwe regels in de Firebase Console.
 
