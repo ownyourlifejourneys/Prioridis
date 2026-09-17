@@ -226,6 +226,14 @@
   }
   .prio-panel[data-open="true"] .chevron{ transform:rotate(180deg); }
 
+  .prio-intro-hint{
+    margin:0;
+    padding:0 16px 12px;
+    font-size:.82rem;
+    line-height:1.4;
+    color:var(--ink-soft);
+  }
+
   .prio-list{
     display:none;
     flex-direction:column;
@@ -352,7 +360,7 @@
     color:var(--ink);
     border-radius:10px;
     padding:9px 12px;
-    font:500 .88rem 'Work Sans', sans-serif;
+    font:500 1rem 'Work Sans', sans-serif;
   }
   .prio-add input[type=text]:focus{
     outline:2px solid var(--ring);
@@ -397,7 +405,7 @@
     color:var(--ink);
     border-radius:10px;
     padding:11px 13px;
-    font:500 .95rem 'Work Sans', sans-serif;
+    font:500 1rem 'Work Sans', sans-serif;
   }
   .composer-body input[type=text]:focus{
     outline:2px solid var(--ring);
@@ -445,7 +453,7 @@
     color:var(--ink);
     border-radius:10px;
     padding:9px 11px;
-    font:500 .88rem 'Work Sans', sans-serif;
+    font:500 1rem 'Work Sans', sans-serif;
     width:100%;
   }
   .field input:focus{
@@ -453,6 +461,26 @@
     outline-offset:1px;
     border-color:var(--accent);
   }
+
+  .fab-add-btn{
+    position:fixed;
+    right:calc(20px + env(safe-area-inset-right));
+    bottom:calc(20px + env(safe-area-inset-bottom));
+    width:56px;
+    height:56px;
+    border-radius:50%;
+    border:none;
+    background:var(--accent);
+    color:var(--accent-ink);
+    box-shadow:var(--shadow);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    z-index:20;
+  }
+  .fab-add-btn:hover{ filter:brightness(1.06); }
+  .fab-add-btn:active{ transform:scale(.96); }
 
   /* login */
   #loginView:not([hidden]){
@@ -897,6 +925,7 @@
   </header>
 
   <section class="card prio-panel" id="prioPanel" data-open="false">
+    <p class="prio-intro-hint" id="prioIntroHint" hidden>Dit zijn de levensgebieden waarop je taken worden beoordeeld. Tik hierboven om de lijst te openen en zet ze met de pijltjes in de volgorde die voor jou belangrijk is: een taak die bijdraagt aan een gebied hoog in de lijst krijgt voorrang op je dagelijkse lijst.</p>
     <button class="prio-summary" id="prioToggle" type="button" aria-expanded="false">
       <span class="label">Prioriteiten</span>
       <svg class="chevron" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -986,6 +1015,10 @@
   </section>
 
   <footer>Prioridis &middot; veilig bewaard bij jouw eigen account</footer>
+
+  <button class="fab-add-btn" id="fabAddBtn" type="button" aria-label="Nieuwe taak toevoegen">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+  </button>
 </div>
 
 <script>
@@ -1108,7 +1141,8 @@
       order: cats.map(function(c){ return c.id; }),
       theme: "auto",
       layout: "standaard",
-      avatar: null
+      avatar: null,
+      prioritiesCustomized: false
     };
   }
 
@@ -1119,6 +1153,7 @@
   var currentLayout = "standaard";
   var currentAvatar = null;
   var currentDisplayName = "";
+  var prioritiesCustomized = true;
   var currentUid = null;
   var selectedCat = null;
   var nextId = 1;
@@ -1194,6 +1229,7 @@
     order.push(cat.id);
     saveCategories(categories);
     saveOrder(order);
+    markPrioritiesCustomized();
     renderAll();
   }
 
@@ -1212,6 +1248,7 @@
     if(selectedCat === id) selectedCat = order[0];
     saveCategories(categories);
     saveOrder(order);
+    markPrioritiesCustomized();
     renderAll();
   }
 
@@ -1292,6 +1329,7 @@
   var prioPanel = document.getElementById("prioPanel");
   var prioToggle = document.getElementById("prioToggle");
   var prioList = document.getElementById("prioList");
+  var prioIntroHint = document.getElementById("prioIntroHint");
   var newCatInput = document.getElementById("newCatInput");
   var newCatBtn = document.getElementById("newCatBtn");
 
@@ -1318,6 +1356,7 @@
     order[index] = order[target];
     order[target] = tmp;
     saveOrder(order);
+    markPrioritiesCustomized();
     renderAll();
   }
 
@@ -1398,6 +1437,19 @@
   var dueInput = document.getElementById("dueInput");
   var hoursInput = document.getElementById("hoursInput");
   var dailyInput = document.getElementById("dailyInput");
+
+  // ---- snel toevoegen (FAB) ----
+  var fabAddBtn = document.getElementById("fabAddBtn");
+  fabAddBtn.addEventListener("click", function(){
+    var wasOpen = composePanel.getAttribute("data-open") === "true";
+    if(!wasOpen){
+      composePanel.setAttribute("data-open", "true");
+      composeToggle.setAttribute("aria-expanded", "true");
+      if(!dueInput.value) dueInput.value = todayISO();
+      if(!hoursInput.value) hoursInput.value = "1";
+    }
+    taskInput.focus();
+  });
 
   function renderChips(){
     catChips.innerHTML = "";
@@ -2042,6 +2094,7 @@
     renderTasks();
     renderDone();
     renderGoalsChart();
+    if(prioIntroHint) prioIntroHint.hidden = prioritiesCustomized;
   }
 
   renderAll();
@@ -2258,7 +2311,15 @@
     currentLayout = data.layout || "standaard";
     currentAvatar = data.avatar || null;
     currentDisplayName = data.displayName || "";
+    prioritiesCustomized = data.prioritiesCustomized === false ? false : true;
     selectedCat = order[0];
+  }
+
+  function markPrioritiesCustomized(){
+    if(prioritiesCustomized) return;
+    prioritiesCustomized = true;
+    if(prioIntroHint) prioIntroHint.hidden = true;
+    queueSave({ prioritiesCustomized:true });
   }
 
   // Voor een gloednieuw account: elke voorbeeldtaak als eigen document in de
@@ -2351,7 +2412,7 @@
       if(tasksUnsub){ tasksUnsub(); tasksUnsub = null; }
       currentUid = null;
       categories = []; order = []; tasks = []; selectedCat = null;
-      currentTheme = "auto"; currentLayout = "standaard"; currentAvatar = null; currentDisplayName = "";
+      currentTheme = "auto"; currentLayout = "standaard"; currentAvatar = null; currentDisplayName = ""; prioritiesCustomized = true;
       showLogin();
     }
   });
