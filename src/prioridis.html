@@ -1663,13 +1663,14 @@
         audioCtx = new Ctx();
       }
       var ctx = audioCtx;
-      if(ctx.state === "suspended"){
-        ctx.resume().then(function(){ ringBell(ctx); }).catch(function(err){
-          logError("geluid bij afvinken (audiocontext hervatten)", err);
-        });
-      } else {
-        ringBell(ctx);
-      }
+      // Altijd hervatten, ongeacht de status van dit moment: die status kan
+      // net zijn bijgewerkt door de pointerdown vlak ervoor (unlockAudio) en
+      // wisselt per tik in welke volgorde dat precies gebeurt. resume() op
+      // een audioverbinding die al actief is, is direct klaar, dus dit voegt
+      // geen merkbare vertraging toe als hij al klaarstond.
+      ctx.resume().then(function(){ ringBell(ctx); }).catch(function(err){
+        logError("geluid bij afvinken (audiocontext hervatten)", err);
+      });
     } catch(e){ logError("geluid bij afvinken", e); }
   }
   // playBell() wacht resume() zelf netjes af (zie hierboven), maar als dat
