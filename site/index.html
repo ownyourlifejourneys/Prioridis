@@ -48,6 +48,7 @@
     --c-swatch-10: #4C5FD5;
     --c-swatch-11: #6B8F71;
     --c-toewijzen: #A39DB8;
+    --list-toggle: #A83E86;
   }
 
   @media (prefers-color-scheme: dark){
@@ -79,6 +80,7 @@
       --c-swatch-10: #7C8AF0;
       --c-swatch-11: #8FB89A;
       --c-toewijzen: #9A93B0;
+      --list-toggle: #D97FC1;
     }
   }
   :root[data-theme="dark"]{
@@ -109,6 +111,7 @@
     --c-swatch-10: #7C8AF0;
     --c-swatch-11: #8FB89A;
     --c-toewijzen: #9A93B0;
+    --list-toggle: #D97FC1;
   }
 
   *{box-sizing:border-box;}
@@ -616,12 +619,30 @@
     justify-content:space-between;
     padding:0 4px 10px;
   }
+  .list-head-title{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
   .list-head h2{
     font-size:1.05rem;
     font-weight:700;
     margin:0;
     color:var(--ink);
   }
+  .list-compact-toggle{
+    width:22px; height:22px;
+    border-radius:50%;
+    border:1px solid var(--border);
+    background:var(--surface);
+    color:var(--list-toggle);
+    font:700 1.05rem/1 'Work Sans', sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    padding:0;
+    flex-shrink:0;
+  }
+  .list-compact-toggle:hover{ border-color:var(--list-toggle); }
   .clear-examples{
     border:none;
     background:none;
@@ -641,6 +662,8 @@
     border-bottom:1px solid var(--border);
   }
   .task:last-child{ border-bottom:none; }
+  .tasks.compact .task{ padding:9px 4px; }
+  .tasks.compact .task-meta{ display:none; }
 
   .check{
     width:23px; height:23px;
@@ -982,7 +1005,10 @@
 
   <section>
     <div class="list-head">
-      <h2 id="listHeadTitle">Jouw lijst</h2>
+      <div class="list-head-title">
+        <h2 id="listHeadTitle">Jouw lijst</h2>
+        <button class="list-compact-toggle" id="listCompactToggle" type="button" aria-pressed="false">&minus;</button>
+      </div>
       <button class="clear-examples" id="clearExamples" type="button" hidden>Wis voorbeelden</button>
     </div>
     <div class="card">
@@ -1150,7 +1176,8 @@
       theme: "auto",
       layout: "standaard",
       avatar: null,
-      prioritiesCustomized: false
+      prioritiesCustomized: false,
+      listCompact: false
     };
   }
 
@@ -1162,6 +1189,7 @@
   var currentAvatar = null;
   var currentDisplayName = "";
   var prioritiesCustomized = true;
+  var listCompact = false;
   var currentUid = null;
   var selectedCat = null;
   var nextId = 1;
@@ -1671,13 +1699,14 @@
         audioCtx = new Ctx();
       }
       var ctx = audioCtx;
-      if(ctx.state === "suspended"){
-        ctx.resume().then(function(){ ringBell(ctx); }).catch(function(err){
-          logError("geluid bij afvinken (audiocontext hervatten)", err);
-        });
-      } else {
-        ringBell(ctx);
-      }
+      // Altijd hervatten, ongeacht de status van dit moment: die status kan
+      // net zijn bijgewerkt door de pointerdown vlak ervoor (unlockAudio) en
+      // wisselt per tik in welke volgorde dat precies gebeurt. resume() op
+      // een audioverbinding die al actief is, is direct klaar, dus dit voegt
+      // geen merkbare vertraging toe als hij al klaarstond.
+      ctx.resume().then(function(){ ringBell(ctx); }).catch(function(err){
+        logError("geluid bij afvinken (audiocontext hervatten)", err);
+      });
     } catch(e){ logError("geluid bij afvinken", e); }
   }
   // playBell() wacht resume() zelf netjes af (zie hierboven), maar als dat
@@ -1710,6 +1739,22 @@
   var taskListEl = document.getElementById("taskList");
   var emptyState = document.getElementById("emptyState");
   var clearExamplesBtn = document.getElementById("clearExamples");
+  var listCompactToggle = document.getElementById("listCompactToggle");
+  function applyListCompact(){
+    taskListEl.classList.toggle("compact", listCompact);
+    if(listCompactToggle){
+      listCompactToggle.textContent = listCompact ? "+" : "−";
+      listCompactToggle.setAttribute("aria-pressed", listCompact ? "true" : "false");
+      listCompactToggle.setAttribute("aria-label", listCompact ? "Jouw lijst volledig weergeven" : "Jouw lijst compact weergeven");
+    }
+  }
+  if(listCompactToggle){
+    listCompactToggle.addEventListener("click", function(){
+      listCompact = !listCompact;
+      applyListCompact();
+      queueSave({ listCompact:listCompact });
+    });
+  }
   var doneList = document.getElementById("doneList");
   var doneCount = document.getElementById("doneCount");
   var doneActionsRow = document.getElementById("doneActionsRow");
@@ -2103,6 +2148,7 @@
     renderDone();
     renderGoalsChart();
     if(prioIntroHint) prioIntroHint.hidden = prioritiesCustomized;
+    applyListCompact();
   }
 
   renderAll();
@@ -2320,6 +2366,7 @@
     currentAvatar = data.avatar || null;
     currentDisplayName = data.displayName || "";
     prioritiesCustomized = data.prioritiesCustomized === false ? false : true;
+    listCompact = data.listCompact === true;
     selectedCat = order[0];
   }
 
@@ -2420,7 +2467,7 @@
       if(tasksUnsub){ tasksUnsub(); tasksUnsub = null; }
       currentUid = null;
       categories = []; order = []; tasks = []; selectedCat = null;
-      currentTheme = "auto"; currentLayout = "standaard"; currentAvatar = null; currentDisplayName = ""; prioritiesCustomized = true;
+      currentTheme = "auto"; currentLayout = "standaard"; currentAvatar = null; currentDisplayName = ""; prioritiesCustomized = true; listCompact = false;
       showLogin();
     }
   });
