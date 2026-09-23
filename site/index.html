@@ -447,6 +447,10 @@
   }
   .row2{ display:flex; gap:8px; }
   .field{ flex:1; display:flex; flex-direction:column; gap:4px; min-width:0; }
+  /* Het native datumveld heeft op de telefoon een eigen minimumbreedte die
+     niet meekrimpt; bij een gelijke 50/50-verdeling ging dat overlappen met
+     het urenveld ernaast. Uren heeft genoeg aan een vast, smal vak. */
+  .row2 .field:last-child{ flex:0 0 84px; }
   .field[hidden]{ display:none; }
   .field-label{
     font-size:.68rem;
@@ -591,6 +595,7 @@
     border-color:transparent;
   }
   .composer-body .row3{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .recur-checks{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
   .daily-check{
     display:inline-flex;
     align-items:center;
@@ -994,10 +999,16 @@
         </label>
       </div>
       <div class="row3">
-        <label class="daily-check">
-          <input type="checkbox" id="dailyInput">
-          <span>Dagelijks</span>
-        </label>
+        <div class="recur-checks">
+          <label class="daily-check">
+            <input type="checkbox" id="dailyInput">
+            <span>Dagelijks</span>
+          </label>
+          <label class="daily-check">
+            <input type="checkbox" id="weeklyInput">
+            <span>Wekelijks</span>
+          </label>
+        </div>
         <button class="add-btn" id="addBtn" type="button">Toevoegen</button>
       </div>
     </div>
@@ -1155,6 +1166,17 @@
     d.setDate(d.getDate() + n);
     return toISODate(d);
   }
+  // Geeft de datum van de maandag van de week van d, als ISO-string. Wordt
+  // gebruikt om wekelijkse taken op maandag te laten resetten, ongeacht op
+  // welke dag van de week ze werden afgevinkt.
+  function mondayOfWeek(d){
+    var day = d.getDay(); // 0 = zondag ... 6 = zaterdag
+    var diff = day === 0 ? -6 : 1 - day;
+    var monday = new Date(d);
+    monday.setDate(d.getDate() + diff);
+    return toISODate(monday);
+  }
+  function currentWeekKey(){ return mondayOfWeek(new Date()); }
 
   function exampleTasks(){
     return [
@@ -1473,6 +1495,15 @@
   var dueInput = document.getElementById("dueInput");
   var hoursInput = document.getElementById("hoursInput");
   var dailyInput = document.getElementById("dailyInput");
+  var weeklyInput = document.getElementById("weeklyInput");
+  // Dagelijks en wekelijks sluiten elkaar uit: een taak is óf het één, óf het
+  // ander, óf geen van beide (anders zou de D:/W: -prefix niet eenduidig zijn).
+  dailyInput.addEventListener("change", function(){
+    if(dailyInput.checked) weeklyInput.checked = false;
+  });
+  weeklyInput.addEventListener("change", function(){
+    if(weeklyInput.checked) dailyInput.checked = false;
+  });
 
   // ---- snel toevoegen (FAB) ----
   var fabAddBtn = document.getElementById("fabAddBtn");
@@ -1541,13 +1572,16 @@
       dueDate: dueInput.value || null,
       hours: isNaN(hoursVal) ? null : hoursVal,
       daily: dailyInput.checked,
-      dailyDoneDate: null
+      dailyDoneDate: null,
+      weekly: weeklyInput.checked,
+      weeklyDoneDate: null
     };
     tasksCol().doc(task.id).set(task).catch(function(err){ logError("taak toevoegen", err); });
     taskInput.value = "";
     dueInput.value = "";
     hoursInput.value = "";
     dailyInput.checked = false;
+    weeklyInput.checked = false;
     if(typeof showMicStatus === "function"){ showMicStatus(null); }
     taskInput.focus();
   }
@@ -1786,9 +1820,11 @@
     if(done){
       patch.doneAt = Date.now();
       if(task.daily) patch.dailyDoneDate = todayISO();
+      if(task.weekly) patch.weeklyDoneDate = currentWeekKey();
       playBell();
-    } else if(task.daily){
-      patch.dailyDoneDate = null;
+    } else {
+      if(task.daily) patch.dailyDoneDate = null;
+      if(task.weekly) patch.weeklyDoneDate = null;
     }
     tasksCol().doc(task.id).update(patch).catch(function(err){ logError("taak afvinken", err); });
   }
@@ -1807,7 +1843,7 @@
 
     var msg = document.createElement("span");
     msg.className = "confirm-msg";
-    msg.textContent = t.daily ? "Hele dagelijkse reeks verwijderen?" : "Taak verwijderen?";
+    msg.textContent = t.daily ? "Hele dagelijkse reeks verwijderen?" : (t.weekly ? "Hele wekelijkse reeks verwijderen?" : "Taak verwijderen?");
 
     var actions = document.createElement("div");
     actions.className = "confirm-actions";
@@ -1875,7 +1911,10 @@
 
       var txt = document.createElement("div");
       txt.className = "task-text";
-      txt.textContent = t.text;
+      // D:/W: -voorvoegsel blijft ook zichtbaar wanneer de lijst compact
+      // staat (dan is de tweede regel met de "dagelijks"/"wekelijks"-badge
+      // immers verborgen) — dit is de enige plek waar dat nog te zien is.
+      txt.textContent = (t.daily ? "D: " : t.weekly ? "W: " : "") + t.text;
 
       var meta = document.createElement("div");
       meta.className = "task-meta";
@@ -1920,6 +1959,13 @@
         dailyBadge.className = "daily-badge";
         dailyBadge.textContent = "dagelijks";
         meta.appendChild(dailyBadge);
+      }
+
+      if(t.weekly){
+        var weeklyBadge = document.createElement("span");
+        weeklyBadge.className = "daily-badge";
+        weeklyBadge.textContent = "wekelijks";
+        meta.appendChild(weeklyBadge);
       }
 
       if(t.example){
@@ -2387,21 +2433,31 @@
     return batch.commit();
   }
 
-  // ---- dagelijkse taken ----
+  // ---- dagelijkse en wekelijkse taken ----
   // Een taak met daily:true telt als "voltooid voor vandaag" zolang
   // dailyDoneDate op vandaag staat. Bij een nieuwe dag wordt hij automatisch
-  // weer actief, zonder dat er een nieuwe taak wordt aangemaakt. De reset wordt
-  // per gewijzigde taak weggeschreven; de live listener hieronder ververst het
-  // scherm zodra die wijziging binnenkomt.
-  function refreshDailyTasks(){
+  // weer actief, zonder dat er een nieuwe taak wordt aangemaakt. Een taak met
+  // weekly:true werkt hetzelfde, maar dan per week: weeklyDoneDate bevat de
+  // maandag van de week waarin hij is afgevinkt, en zodra de huidige week een
+  // andere maandag heeft, wordt hij weer actief. De reset wordt per gewijzigde
+  // taak weggeschreven; de live listener hieronder ververst het scherm zodra
+  // die wijziging binnenkomt.
+  function refreshRecurringTasks(){
     var today = todayISO();
-    var toReset = tasks.filter(function(t){ return t.daily && t.done && t.dailyDoneDate !== today; });
+    var weekKey = currentWeekKey();
+    var toReset = tasks.filter(function(t){
+      return (t.daily && t.done && t.dailyDoneDate !== today) ||
+             (t.weekly && t.done && t.weeklyDoneDate !== weekKey);
+    });
     if(!toReset.length) return;
     var batch = db.batch();
     toReset.forEach(function(t){
-      batch.update(tasksCol().doc(t.id), { done:false, dailyDoneDate:null });
+      var patch = { done:false };
+      if(t.daily) patch.dailyDoneDate = null;
+      if(t.weekly) patch.weeklyDoneDate = null;
+      batch.update(tasksCol().doc(t.id), patch);
     });
-    batch.commit().catch(function(err){ logError("dagelijkse taken resetten", err); });
+    batch.commit().catch(function(err){ logError("terugkerende taken resetten", err); });
   }
 
   // Houdt de taken van de ingelogde gebruiker live gesynchroniseerd: een
@@ -2416,7 +2472,7 @@
       tasks = snap.docs.map(function(d){ return d.data(); });
       if(!tasksLoadedOnce){
         tasksLoadedOnce = true;
-        refreshDailyTasks();
+        refreshRecurringTasks();
         renderAll();
         showApp(currentDisplayName);
         clearStatus();
@@ -2472,12 +2528,13 @@
     }
   });
 
-  // Zorgt dat een dagelijkse taak ook terugkomt als de app rond middernacht
-  // open blijft staan, zonder dat daarvoor opnieuw hoeft te worden ingelogd.
-  // De live listener hierboven ververst het scherm zodra de reset binnenkomt.
+  // Zorgt dat een dagelijkse of wekelijkse taak ook terugkomt als de app
+  // open blijft staan rond middernacht (dagelijks) of het weekend (wekelijks),
+  // zonder dat daarvoor opnieuw hoeft te worden ingelogd. De live listener
+  // hierboven ververst het scherm zodra de reset binnenkomt.
   setInterval(function(){
     if(!currentUid) return;
-    refreshDailyTasks();
+    refreshRecurringTasks();
   }, 10 * 60 * 1000);
 })();
 </script>
